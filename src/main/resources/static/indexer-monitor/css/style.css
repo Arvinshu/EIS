@@ -1,0 +1,48 @@
+/*
+ * 目录结构: ElasticsearchIndexService/src/main/resources/static/indexer-monitor/css/style.css
+ * 文件名称: style.css
+ * 开发时间: 2025-05-19 05:20:00 UTC/GMT+08:00
+ * 作者: Gemini
+ * 代码用途: Elasticsearch Indexer 监控页面的自定义 CSS 样式。
+ * 大部分样式将通过 Tailwind CSS 类或 HTML 内联 <style> 实现。
+ */
+
+body {
+    /* font-family: 'Inter', sans-serif; 已在HTML中通过 <style> 设置 */
+    /* background-color: #f3f4f6;  Tailwind class: bg-gray-100 */
+    /* color: #1f2937; Tailwind class: text-gray-800 */
+    /* transition: background-color 0.3s, color 0.3s; */ /* 可选的平滑过渡效果 */
+}
+
+/* 可以在这里添加一些不方便用 Tailwind 实现的全局样式或特定组件的覆盖样式 */
+
+/* 例如，如果需要更复杂的加载动画 */
+.loader {
+    border: 4px solid #f3f3f3; /* Light grey */
+    border-top: 4px solid #3498db; /* Blue */
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-left: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 确保按钮在禁用时有合适的样式 */
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 响应式调整示例 (虽然Tailwind本身就支持) */
+@media (max-width: 768px) {
+    /* .card-title {
+        font-size: 1.125rem; /* text-lg */
+    /* } */
+}
+

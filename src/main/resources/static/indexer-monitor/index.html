@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DMS Elasticsearch Indexer 监控</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-up { background-color: #22c55e; /* green-500 */ }
+        .status-down { background-color: #ef4444; /* red-500 */ }
+        .status-warn { background-color: #f59e0b; /* amber-500 */ }
+        .status-unknown { background-color: #6b7280; /* gray-500 */ }
+
+        .card {
+            background-color: white;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
+            padding: 1.5rem; /* p-6 */
+            margin-bottom: 1.5rem; /* mb-6 */
+        }
+        .card-title {
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 600; /* font-semibold */
+            margin-bottom: 1rem; /* mb-4 */
+            color: #1f2937; /* gray-800 */
+        }
+        .stat-item {
+            margin-bottom: 0.75rem; /* mb-3 */
+        }
+        .stat-label {
+            font-weight: 500; /* font-medium */
+            color: #4b5563; /* gray-600 */
+        }
+        .stat-value {
+            color: #111827; /* gray-900 */
+            word-break: break-all;
+        }
+        .table-dlq th, .table-dlq td {
+            padding: 0.5rem 0.75rem; /* py-2 px-3 */
+            border: 1px solid #e5e7eb; /* border-gray-200 */
+            text-align: left;
+        }
+        .table-dlq th {
+            background-color: #f9fafb; /* bg-gray-50 */
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem; /* rounded-md */
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb; /* blue-600 */
+        }
+        .btn-secondary {
+            background-color: #6b7280; /* gray-500 */
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563; /* gray-600 */
+        }
+        .btn-danger {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+        .btn-warning {
+            background-color: #f59e0b; /* amber-500 */
+            color: white;
+        }
+        .btn-warning:hover {
+            background-color: #d97706; /* amber-600 */
+        }
+        .progress-bar-container {
+            width: 100%;
+            background-color: #e5e7eb; /* gray-200 */
+            border-radius: 0.375rem; /* rounded-md */
+            overflow: hidden;
+            height: 1.5rem; /* h-6 */
+        }
+        .progress-bar {
+            background-color: #3b82f6; /* blue-500 */
+            height: 100%;
+            width: 0%; /* JS will update this */
+            text-align: center;
+            color: white;
+            line-height: 1.5rem; /* leading-6 for h-6 */
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8">
+
+<header class="mb-8 p-4 bg-white shadow-md rounded-lg">
+    <div class="container mx-auto flex justify-between items-center">
+        <h1 class="text-2xl md:text-3xl font-bold text-blue-600">DMS Elasticsearch Indexer 监控</h1>
+        <div class="flex items-center space-x-2 md:space-x-4">
+            <button id="refreshAllButton" class="btn btn-primary text-sm md:text-base">
+                <i class="fas fa-sync-alt mr-1"></i>刷新
+            </button>
+            <div class="flex items-center text-sm md:text-base">
+                <label for="autoRefreshToggle" class="mr-2 cursor-pointer">自动刷新:</label>
+                <input type="checkbox" id="autoRefreshToggle" class="form-checkbox h-5 w-5 text-blue-600 rounded cursor-pointer">
+                <select id="autoRefreshInterval" class="ml-2 p-1 border rounded-md text-sm" disabled>
+                    <option value="15000">15秒</option>
+                    <option value="30000" selected>30秒</option>
+                    <option value="60000">60秒</option>
+                </select>
+            </div>
+            <div class="text-sm text-gray-600 hidden md:block">
+                服务器时间: <span id="serverTime">-</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="container mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <div class="card lg:col-span-1">
+            <h2 class="card-title">服务概览</h2>
+            <div class="stat-item">
+                <span class="stat-label">Indexer 服务状态:</span>
+                <span class="stat-value ml-2"><span id="indexerStatusIndicator" class="status-indicator status-unknown"></span><span id="indexerStatus">加载中...</span></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Kafka 连接:</span>
+                <span class="stat-value ml-2"><span id="kafkaConnectionIndicator" class="status-indicator status-unknown"></span><span id="kafkaConnectionStatus">加载中...</span></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Elasticsearch 连接:</span>
+                <span class="stat-value ml-2"><span id="esConnectionIndicator" class="status-indicator status-unknown"></span><span id="esConnectionStatus">加载中...</span></span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">最后数据更新:</span>
+                <span id="lastDataUpdate" class="stat-value ml-2">从未</span>
+            </div>
+        </div>
+
+        <div class="card lg:col-span-2">
+            <h2 class="card-title">Kafka 消费者统计</h2>
+            <div id="kafkaConsumerStatsContainer" class="space-y-6">
+                <div class="p-4 border rounded-lg bg-gray-50">
+                    <h3 class="text-lg font-semibold mb-2 text-gray-700" id="kafkaUpsertTopicName">dms-file-upsert-events</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                        <div class="stat-item"><span class="stat-label">消费者组ID:</span> <span id="kafkaUpsertGroupId" class="stat-value">-</span></div>
+                        <div class="stat-item"><span class="stat-label">分配分区:</span> <span id="kafkaUpsertAssignedPartitions" class="stat-value">-</span></div>
+                        <div class="stat-item"><span class="stat-label">总 Lag:</span> <span id="kafkaUpsertTotalLag" class="stat-value">-</span></div>
+                        <div class="stat-item col-span-2 sm:col-span-3"><span class="stat-label">各分区 Lag:</span> <span id="kafkaUpsertLagPerPartition" class="stat-value">-</span></div>
+                    </div>
+                </div>
+                <div class="p-4 border rounded-lg bg-gray-50">
+                    <h3 class="text-lg font-semibold mb-2 text-gray-700" id="kafkaDeleteTopicName">dms-file-delete-events</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                        <div class="stat-item"><span class="stat-label">消费者组ID:</span> <span id="kafkaDeleteGroupId" class="stat-value">-</span></div>
+                        <div class="stat-item"><span class="stat-label">分配分区:</span> <span id="kafkaDeleteAssignedPartitions" class="stat-value">-</span></div>
+                        <div class="stat-item"><span class="stat-label">总 Lag:</span> <span id="kafkaDeleteTotalLag" class="stat-value">-</span></div>
+                        <div class="stat-item col-span-2 sm:col-span-3"><span class="stat-label">各分区 Lag:</span> <span id="kafkaDeleteLagPerPartition" class="stat-value">-</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card lg:col-span-1">
+            <h2 class="card-title">Elasticsearch 索引统计</h2>
+            <div class="stat-item"><span class="stat-label">索引名称:</span> <span id="esIndexName" class="stat-value">dms_files</span></div>
+            <div class="stat-item">
+                <span class="stat-label">索引状态:</span>
+                <span class="stat-value ml-2"><span id="esIndexStatusIndicator" class="status-indicator status-unknown"></span><span id="esIndexStatus">加载中...</span></span>
+            </div>
+            <div class="stat-item"><span class="stat-label">文档总数:</span> <span id="esTotalDocs" class="stat-value">-</span></div>
+            <div class="stat-item"><span class="stat-label">索引大小 (主分片):</span> <span id="esIndexSizePrimary" class="stat-value">-</span></div>
+            <div class="stat-item"><span class="stat-label">索引大小 (总):</span> <span id="esIndexSizeTotal" class="stat-value">-</span></div>
+            <div class="stat-item"><span class="stat-label">最后成功索引操作:</span> <span id="esLastSuccessfulIndexOp" class="stat-value">-</span></div>
+            <div class="stat-item"><span class="stat-label">最后索引错误:</span> <span id="esLastIndexingError" class="stat-value">-</span></div>
+        </div>
+
+        <div class="card lg:col-span-2">
+            <h2 class="card-title">死信队列 (DLQ) 管理</h2>
+            <div id="dlqManagerContainer" class="space-y-6">
+                <div class="p-4 border rounded-lg bg-gray-50">
+                    <h3 class="text-lg font-semibold mb-2 text-gray-700" id="dlqUpsertTopicName">dms-file-upsert-events-dlq</h3>
+                    <div class="stat-item mb-3">
+                        <span class="stat-label">DLQ消息数 (近似):</span> <span id="dlqUpsertCount" class="stat-value">-</span>
+                    </div>
+                    <div class="space-x-2">
+                        <button id="viewUpsertDlqMessages" class="btn btn-secondary btn-sm">查看消息</button>
+                        <button id="retryUpsertDlqAll" class="btn btn-warning btn-sm">重试全部</button>
+                        <button id="deleteUpsertDlqAll" class="btn btn-danger btn-sm">删除全部</button>
+                    </div>
+                    <div id="upsertDlqMessagesArea" class="mt-4 hidden overflow-x-auto">
+                        <p class="text-sm text-gray-600 mb-2">DLQ 消息列表 (功能待实现)</p>
+                        <table class="w-full text-sm table-dlq">
+                            <thead>
+                            <tr><th>消息ID</th><th>时间戳</th><th>错误头</th><th>内容片段</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="upsertDlqMessagesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="p-4 border rounded-lg bg-gray-50">
+                    <h3 class="text-lg font-semibold mb-2 text-gray-700" id="dlqDeleteTopicName">dms-file-delete-events-dlq</h3>
+                    <div class="stat-item mb-3">
+                        <span class="stat-label">DLQ消息数 (近似):</span> <span id="dlqDeleteCount" class="stat-value">-</span>
+                    </div>
+                    <div class="space-x-2">
+                        <button id="viewDeleteDlqMessages" class="btn btn-secondary btn-sm">查看消息</button>
+                        <button id="retryDeleteDlqAll" class="btn btn-warning btn-sm">重试全部</button>
+                        <button id="deleteDeleteDlqAll" class="btn btn-danger btn-sm">删除全部</button>
+                    </div>
+                    <div id="deleteDlqMessagesArea" class="mt-4 hidden overflow-x-auto">
+                        <p class="text-sm text-gray-600 mb-2">DLQ 消息列表 (功能待实现)</p>
+                        <table class="w-full text-sm table-dlq">
+                            <thead>
+                            <tr><th>消息ID</th><th>时间戳</th><th>错误头</th><th>内容片段</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="deleteDlqMessagesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card lg:col-span-3">
+            <h2 class="card-title">历史数据批量索引</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <div class="stat-item"><span class="stat-label">当前作业状态:</span> <span id="batchJobStatus" class="stat-value">IDLE</span></div>
+                    <div class="stat-item"><span class="stat-label">最近运行ID:</span> <span id="batchLastRunId" class="stat-value">-</span></div>
+                    <div class="stat-item"><span class="stat-label">最近开始时间:</span> <span id="batchLastRunStartTime" class="stat-value">-</span></div>
+                    <div class="stat-item"><span class="stat-label">最近结束时间:</span> <span id="batchLastRunEndTime" class="stat-value">-</span></div>
+                    <div class="stat-item"><span class="stat-label">最近持续时间:</span> <span id="batchLastRunDuration" class="stat-value">-</span></div>
+                </div>
+                <div>
+                    <div class="stat-item"><span class="stat-label">扫描文件数:</span> <span id="batchFilesScanned" class="stat-value">-</span></div>
+                    <div class="stat-item"><span class="stat-label">处理文件数:</span> <span id="batchFilesProcessed" class="stat-value">-</span></div>
+                    <div class="stat-item"><span class="stat-label">成功索引数:</span> <span id="batchSuccessfullyIndexed" class="stat-value">-</span></div>
+                    <div class="stat-item"><span class="stat-label">索引失败数:</span> <span id="batchFailedToIndex" class="stat-value">-</span></div>
+                </div>
+            </div>
+            <div class="mb-4">
+                <span class="stat-label">进度:</span>
+                <div class="progress-bar-container mt-1">
+                    <div id="batchJobProgress" class="progress-bar">0%</div>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button id="startBatchJobButton" class="btn btn-primary">
+                    <i class="fas fa-play mr-1"></i>启动历史数据索引作业
+                </button>
+                <button id="stopBatchJobButton" class="btn btn-danger" disabled>
+                    <i class="fas fa-stop mr-1"></i>停止当前作业 (待实现)
+                </button>
+            </div>
+            <div class="mt-4">
+                <h3 class="text-md font-semibold mb-2 text-gray-700">最近作业执行历史:</h3>
+                <div id="batchJobHistoryContainer" class="max-h-60 overflow-y-auto border rounded-md p-2 bg-gray-50 text-sm">
+                    <p id="batchJobHistoryMessage">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="mt-12 text-center text-sm text-gray-500">
+    <p>&copy; <span id="currentYear"></span> DMS Elasticsearch Indexer. 保留所有权利。</p>
+</footer>
+
+<script src="js/apiService.js"></script>
+<script src="js/uiUpdater.js"></script>
+<script src="js/kafkaStatsModule.js"></script>
+<script src="js/esStatsModule.js"></script>
+<script src="js/dlqManagerModule.js"></script>
+<script src="js/batchJobModule.js"></script>
+<script src="js/app.js"></script>
+<script>
+    document.getElementById('currentYear').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+PUT _index_template/dms_files_template
+{
+"index_patterns": ["dms_files*"],
+"template": {
+"settings": {
+"number_of_shards": 1,
+"number_of_replicas": 0
+},
+"mappings": {
+"properties": {
+"file_id": {
+"type": "keyword"
+},
+"content": {
+"type": "text",
+"analyzer": "ik_smart"
+},
+"filename": {
+"type": "keyword"
+},
+"source_path": {
+"type": "keyword"
+},
+"last_modified": {
+"type": "date",
+"format": "epoch_second||strict_date_optional_time||yyyy-MM-dd'T'HH:mm:ss'Z'"
+},
+"title": {
+"type": "text",
+"analyzer": "ik_smart"
+},
+"author": {
+"type": "keyword"
+},
+"file_size_bytes": {
+"type": "long"
+},
+"event_timestamp": {
+"type": "date",
+"format": "strict_date_optional_time_nanos||epoch_millis"
+}
+}
+}
+},
+"_meta": {
+"description": "Template for DMS file index",
+"version": 1
+}
+}
